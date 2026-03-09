@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BasePosition(BaseModel):
@@ -33,8 +33,56 @@ class BaseTradeCptyB(BaseModel):
     trade_type: str | None = Field(default=None)
     custodian: str = Field(validation_alias='SOURCE_SYSTEM')
 
+    @field_validator('trade_date', mode='before')
+    @classmethod
+    def parse_datetime(cls, value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.strptime(value, '%Y%m%d')
+            except ValueError:
+                raise ValueError('Unexpected date format')
+        return value
+
 
 class InputCheck(BaseModel):
     status: str
     count: Optional[int] = None
     errors: Optional[list[str]] = []
+
+
+# Reporting models
+
+class ReportPosition(BaseModel):
+    trade_date: datetime
+    account: str
+    ticker: str
+    quantity: float
+    market_value: float
+
+
+class ReportConcentrationTicker(BaseModel):
+    ticker: str
+    market_value: float
+    mv_pct: float
+
+
+class ReportConcentration(BaseModel):
+    trade_date: datetime
+    account: str
+    acct_mv: float
+    breach_details: list[ReportConcentrationTicker]
+
+
+class ReportReconciliationDetail(BaseModel):
+    quantity: float | None
+    market_value: float | None
+
+
+class ReportReconciliation(BaseModel):
+    trade_date: datetime
+    account: str
+    ticker: str
+    trade: ReportReconciliationDetail
+    position: ReportReconciliationDetail

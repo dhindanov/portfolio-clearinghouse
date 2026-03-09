@@ -1,14 +1,11 @@
-import csv, io
-# from flask import Blueprint
 from flask import request, jsonify, redirect
 from datetime import datetime
-from flask_openapi3 import APIBlueprint, OpenAPI, Info, Tag
-from pydantic import ValidationError
+from flask_openapi3 import APIBlueprint, Tag
+from sqlalchemy import func
 
 from . import handler
-from .forms import upload_form
 from .models_db import Trades, Positions
-from .models_io import InputCheck
+from .models_io import InputCheck, ReportPosition, ReportConcentration, ReportReconciliation
 from .dao import db
 
 tag_file = Tag(name="File Upload", description="Trade and position file upload")
@@ -38,18 +35,33 @@ async def ingest_post() -> InputCheck:
 
 
 @router.get('/positions')
-async def positions():
-    users = Trades.query.all()
-    return jsonify([{"id": u.id, "username": u.username} for u in users])
+async def positions() -> list[ReportPosition]:
+    """Positions with cost basis and market value.
+    """
+    acct = request.args.get('account')
+    trade_date: datetime = request.args.get('date')
+    if not trade_date:
+        trade_date = db.session.query(func.max(Positions.trade_date)).scalar()
+    out = Positions.query.filter(Positions.trade_date == trade_date)
+    if acct:
+        out = out.filter(Positions.account == acct)
+    out = handler.report_position(out)
+    return jsonify([rep.model_dump() for rep in out])
 
 
-@router.get('/compliance')
-def compliance(id):
-    user = Trades.query.get_or_404(id)
-    return jsonify({"id": user.id, "username": user.username})
+@router.get('/compliance/concentration')
+def compliance() -> list[ReportConcentration]:
+    """Accounts exceeding 20% threshold with breach details.
+    """
+    trade_date: datetime = request.args.get('date')
+    out = handler.report_concentration(trade_date)
+    return jsonify([rep.model_dump() for rep in out])
 
 
 @router.get('/reconciliation')
-def reconciliation(id):
-    user = Trades.query.get_or_404(id)
-    return jsonify([{"title": p.title} for p in user.posts])
+def reconciliation() -> list[ReportReconciliation]:
+    """Trade vs position file discrepancies on provided day.
+    """
+    trade_date: datetime = request.args.get('date')
+    out = handler.report_reconciliation(trade_date)
+    return jsonify([rep.model_dump() for rep in out])

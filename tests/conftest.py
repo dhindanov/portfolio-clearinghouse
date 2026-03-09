@@ -1,1 +1,25 @@
-import pytest\nfrom your_flask_app import create_app\n\n@pytest.fixture\ndef client():\n    app = create_app()  # Replace with the actual function to create your app\n    app.config['TESTING'] = True\n    with app.test_client() as client:\n        yield client\n\n@pytest.fixture\ndef app_context():\n    app = create_app()\n    with app.app_context():\n        yield\n\n@pytest.fixture(scope='session')\ndef init_database():\n    # Setup SQLite in-memory database\n    import your_flask_app.database as db\n    db.create_all()  # Replace with your actual database setup code\n    yield  # This is where you can add codes to run after your tests\n    db.drop_all()  # Cleanup database after tests\n\n@pytest.fixture\ndef sample_data():\n    # Provide sample data for testing\n    return {\n        'example_key': 'example_value'  # Add your sample key-value pairs here\n    }
+import pytest
+
+
+@pytest.fixture
+def client(scope='session'):
+    """Create a test client with an in-memory SQLite database."""
+    from flask_openapi3 import OpenAPI, Info
+    from portfolio.routes import router
+    from portfolio.dao import db
+    from portfolio.handler import ISODateEncoder
+
+    app = OpenAPI(__name__, info=Info(title='Portfolio API', version='1.0.0'))
+    app.json = ISODateEncoder(app)  # output dates in isoformat
+    app.url_map.strict_slashes = False
+    app.static_folder = '../static'  # for demo
+    app.register_api(router, url='/', url_prefix='/')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    app.config['TESTING'] = True
+    db.init_app(app)
+
+    with app.app_context():
+        db.create_all()
+        yield app.test_client()
+        db.session.remove()
+        db.drop_all()

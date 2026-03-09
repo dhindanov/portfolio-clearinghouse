@@ -9,7 +9,7 @@ class BasePosition(BaseModel):
     ticker: str
     quantity: float = Field(gt=0, validation_alias='shares')
     market_value: float = Field(gt=0)
-    custodian: str | None = Field(validation_alias='custodian_ref')
+    custodian: str | None = Field(validation_alias='custodian_ref', default=None)
 
 
 class BaseTradeCptyA(BaseModel):

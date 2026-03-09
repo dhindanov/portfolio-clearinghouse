@@ -15,3 +15,5 @@ Navigate to the swagger documentation:
 
 Or to the sample UI:
 `http://localhost:5000/`
+
+<img width="2560" height="1600" alt="image" src="https://github.com/user-attachments/assets/289d7450-98e0-4c70-9a99-67773812b95b" />

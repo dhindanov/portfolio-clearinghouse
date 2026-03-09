@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Portfolio Data Clearinghouse</title>
+  <link rel="stylesheet" href="/static/index.css">
+  <script async src="/static/index.js"></script>
+</head>
+
+<body>
+  <h1>Portfolio Data Clearinghouse</h1>
+  <section>
+    <h2>Sample Trade and Portfolio Upload</h2>
+    <h3>Select the correct file to upload</h3>
+
+    <table>
+      <tr>
+        <th>Upload Type</th>
+        <th>Counterparty</th>
+        <th>File Type</th>
+      </tr>
+      <tr>
+        <td>Positions</td>
+        <td></td>
+        <td>.yaml</td>
+        <td>
+          <form action="/ingest" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".yaml, .yml">
+            <input type="hidden" name="target" value="position">
+            <input type="submit" value="Upload">
+          </form>
+        </td>
+      </tr>
+      <tr>
+        <td>Trades</td>
+        <td>Cpty A</td>
+        <td>.csv</td>
+        <td>
+          <form action="/ingest" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".csv">
+            <input type="hidden" name="target" value="trade">
+            <input type="hidden" name="cpty" value="CptyA">
+            <input type="submit" value="Upload">
+          </form>
+        </td>
+      </tr>
+      <tr>
+        <td>Trades</td>
+        <td>Cpty B</td>
+        <td>.csv</td>
+        <td>
+          <form action="/ingest" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".csv">
+            <input type="hidden" name="target" value="trade">
+            <input type="hidden" name="cpty" value="CptyB">
+            <input type="submit" value="Upload">
+          </form>
+        </td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>OpenAPI</h2>
+    <a href="/openapi/swagger">Click to see the endpoint documentation</a>
+  </section>
+
+  <section>
+    <h2>Sample Endpoint Responses</h2>
+    <a href="/openapi/swagger">Click to see the endpoint documentation</a>
+  </section>
+</body>
+
+</html>

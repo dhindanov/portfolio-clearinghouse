@@ -1,0 +1,43 @@
+body {
+  min-width: 100vw;
+  min-height: 100vh;
+  margin: 0;
+  padding: 9px;
+  background-color: aliceblue;
+  font-family: Calibri, Georgia, Tahoma, Times, serif;
+}
+
+section {
+  border-color: #555;
+  border-width: 3px;
+  border-style: double;
+  border-radius: 9px;
+  margin: 9px;
+  padding: 9px;
+
+  input[type="submit"],
+  input[type="file"]::file-selector-button {
+    background-color: cadetblue;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    min-height: 30px;
+  }
+
+  h2 {
+    margin-top: 0;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  tr {
+    border: 1px dashed #444;
+  }
+
+  th,
+  td {
+    padding: 4px 8px 4px 8px;
+  }
+}

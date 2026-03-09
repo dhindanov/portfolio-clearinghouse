@@ -6,5 +6,3 @@ WORKDIR /app
 RUN pip install poetry
 COPY pyproject.toml ./
 RUN poetry config virtualenvs.create true && poetry install --no-interaction --no-root
-RUN poetry run alembic init alembic
-RUN poetry run alembic upgrade head

@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:9.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: pass
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
+      - ./dbdata:/var/lib/mysql
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    env_file:
+      - .env
+    # stdin_open: true
+    # tty: true
+    # command: poetry run python run.py
+    command: uvicorn portfolio.app:asgi_app --host "0.0.0.0" --port "5000" --workers 4 --reload

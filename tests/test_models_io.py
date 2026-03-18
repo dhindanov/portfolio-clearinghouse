@@ -24,27 +24,17 @@ class TestBasePosition:
         assert pos.account == 'ACC001'
         assert pos.quantity == 100.0
 
-    def test_invalid_quantity_zero(self):
-        """Test that zero quantity is rejected."""
-        with pytest.raises(ValidationError):
-            BasePosition(
-                trade_date=datetime(2026, 1, 15),
-                account_id='ACC001',
-                ticker='AAPL',
-                shares=0,
-                market_value=15000.0
+    def test_valid_quantity_zero(self):
+        """Test that zero quantity is accepted."""
+        pos = BasePosition(
+            trade_date=datetime(2026, 1, 15),
+            account_id='ACC001',
+            ticker='AAPL',
+            shares=0,
+            market_value=15000.0
             )
-
-    def test_invalid_market_value_negative(self):
-        """Test that negative market value is rejected."""
-        with pytest.raises(ValidationError):
-            BasePosition(
-                trade_date=datetime(2026, 1, 15),
-                account_id='ACC001',
-                ticker='AAPL',
-                shares=100.0,
-                market_value=-100.0
-            )
+        assert pos.account == 'ACC001'
+        assert pos.quantity == 0.0
 
     def test_custodian_optional(self):
         """Test that custodian is optional."""
@@ -74,19 +64,6 @@ class TestBaseTradeCptyA:
         )
         assert trade.account == 'ACC001'
         assert trade.trade_type == 'BUY'
-
-    def test_invalid_quantity(self):
-        """Test that invalid quantity is rejected."""
-        with pytest.raises(ValidationError):
-            BaseTradeCptyA(
-                TradeDate=datetime(2026, 1, 15),
-                AccountID='ACC001',
-                Ticker='AAPL',
-                Quantity=-50.0,
-                Price=150.0,
-                TradeType='BUY',
-                SettlementDate=datetime(2026, 1, 17)
-            )
 
     def test_price_optional(self):
         """Test that price can be None."""

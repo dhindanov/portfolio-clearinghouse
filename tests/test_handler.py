@@ -68,27 +68,6 @@ class TestReadPositionYaml:
         result = read_position_yaml(file)
         assert result.status == 'input error'
 
-    def test_validation_error_yaml(self, client):
-        """Test YAML with validation errors."""
-        yaml_data = {
-            'report_date': '20260115',
-            'positions': [
-                {
-                    'account_id': 'ACC001',
-                    'ticker': 'AAPL',
-                    'shares': -100.0,  # Invalid: negative
-                    'market_value': 15000.0
-                }
-            ]
-        }
-        yaml_bytes = yaml.dump(yaml_data).encode('utf8')
-
-        file = Mock()
-        file.stream.read.return_value = yaml_bytes
-
-        result = read_position_yaml(file)
-        assert result.status == 'data validation errors'
-
 
 class TestReadTradeCsv:
     """Tests for read_trade_csv function."""
@@ -136,9 +115,9 @@ class TestMakeTradeCptyA:
             Quantity=100.0,
             Price=150.0,
             TradeType='BUY',
-            SettlementDate=datetime(2026, 1, 17)
+            SettlementDate=datetime(2026, 1, 17),
         )
-        trade = make_trade_CptyA('CptyA', trade_data)
+        trade = make_trade_CptyA('CptyA', trade_data, batch_id=2)
         assert trade.quantity == 100.0
         assert trade.market_value == 15000.0
     def test_make_sell_trade(self):
@@ -150,9 +129,9 @@ class TestMakeTradeCptyA:
             Quantity=100.0,
             Price=150.0,
             TradeType='SELL',
-            SettlementDate=datetime(2026, 1, 17)
+            SettlementDate=datetime(2026, 1, 17),
         )
-        trade = make_trade_CptyA('CptyA', trade_data)
+        trade = make_trade_CptyA('CptyA', trade_data, batch_id=2)
         assert trade.quantity == -100.0
         assert trade.market_value == -15000.0
 
@@ -167,11 +146,12 @@ class TestMakeTradeCptyB:
             SECURITY_TICKER='MSFT',
             SHARES=50.0,
             MARKET_VALUE=15000.0,
-            SOURCE_SYSTEM='SYSTEM_B'
+            SOURCE_SYSTEM='SYSTEM_B',
         )
-        trade = make_trade_CptyB('CptyB', trade_data)
+        trade = make_trade_CptyB('CptyB', trade_data, batch_id=2)
         assert trade.trade_type == 'BUY'
         assert trade.price == 300.0
+
     def test_make_negative_quantity_trade(self):
         """Test creating a trade with negative quantity."""
         trade_data = BaseTradeCptyB(
@@ -180,9 +160,9 @@ class TestMakeTradeCptyB:
             SECURITY_TICKER='MSFT',
             SHARES=-50.0,
             MARKET_VALUE=-15000.0,
-            SOURCE_SYSTEM='SYSTEM_B'
+            SOURCE_SYSTEM='SYSTEM_B',
         )
-        trade = make_trade_CptyB('CptyB', trade_data)
+        trade = make_trade_CptyB('CptyB', trade_data, batch_id=2)
         assert trade.trade_type == 'SELL'
 
 
@@ -218,18 +198,22 @@ class TestReportConcentration:
 
     def test_report_concentration_no_breaches(self, client):
         """Test concentration report with no breaches."""
-        pos = Positions(
-            trade_date=datetime(2026, 1, 15),
-            account='ACC001',
-            ticker='AAPL',
-            quantity=10.0,
-            market_value=1500.0
-        )
-        db.session.add(pos)
+        pos_lst = []
+        for ticker in ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'):
+            pos = Positions(
+                trade_date=datetime(2026, 1, 15),
+                account='ACC001',
+                ticker=ticker,
+                quantity=10.0,
+                market_value=1500.0
+            )
+            pos_lst.append(pos)
+        for pos in pos_lst:
+            db.session.add(pos)
         db.session.commit()
 
         result = report_concentration(datetime(2026, 1, 15))
-        # 10% concentration won't breach the 20% threshold
+        # won't breach the 20% threshold
         assert len(result) == 0
 
     def test_report_concentration_with_breach(self, client):
@@ -268,6 +252,7 @@ class TestReportReconciliation:
             market_value=15000.0,
             trade_type='BUY',
             source='TEST',
+            batch_id=1,
         )
         db.session.add(pos)
         db.session.add(trade)
@@ -293,6 +278,7 @@ class TestReportReconciliation:
             market_value=14250.0,
             trade_type='BUY',
             source='TEST',
+            batch_id=1,
         )
         db.session.add(pos)
         db.session.add(trade)

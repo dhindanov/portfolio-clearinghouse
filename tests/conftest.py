@@ -1,3 +1,5 @@
+
+import os
 import pytest
 
 
@@ -9,12 +11,14 @@ def client(scope='session'):
     from portfolio.dao import db
     from portfolio.handler import ISODateEncoder
 
+    creds = [os.getenv(k) for k in ('MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_HOST', 'MYSQL_PORT')]
     app = OpenAPI(__name__, info=Info(title='Portfolio API', version='1.0.0'))
     app.json = ISODateEncoder(app)  # output dates in isoformat
     app.url_map.strict_slashes = False
     app.static_folder = '../static'  # for demo
     app.register_api(router, url='/', url_prefix='/')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://{0}:{1}@{2}:{3}/test'.format(*creds)
+    app.config['SQLALCHEMY_DATABASE_STRICT_TYPES'] = True
     app.config['TESTING'] = True
     db.init_app(app)
 

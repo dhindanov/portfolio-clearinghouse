@@ -47,7 +47,6 @@ def read_position_yaml(file: Any) -> InputCheck:
 
     # Delete and replace all Positions rows for trade_date
     try:
-        Positions.query.filter(Positions.trade_date == trade_date).delete()
         for row in checked:
             out = Positions(**row.model_dump())
             db.session.add(out)
@@ -228,16 +227,6 @@ def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
         out = agg[key].setdefault('trades', {})
         for q in compare_on:
             out[q] = out.get(q, 0) + getattr(row, q)
-
-    # for tbl in ('positions', 'trades'):
-    #     sql: str = text(f"select * from {tbl} where trade_date = :dt")
-    #     cursor = db.session.execute(sql, {'dt': trade_date})
-    #     for row in cursor:
-    #         key = (row.trade_date, row.account, row.ticker)
-    #         side = agg[key].setdefault(tbl, {})
-    #         # Sum up the values for each side, to compare at the end and report discrepancies
-    #         for q in compare_on:
-    #             side[q] = side.get(q, 0) + getattr(row, q)
 
     # Select keys that differ on any comparison items
     out: list[ReportReconciliation] = []

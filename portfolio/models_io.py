@@ -7,8 +7,8 @@ class BasePosition(BaseModel):
     trade_date: datetime
     account: str = Field(validation_alias='account_id')
     ticker: str
-    quantity: float = Field(gt=0, validation_alias='shares')
-    market_value: float = Field(gt=0)
+    quantity: float = Field(validation_alias='shares')
+    market_value: float
     custodian: str | None = Field(validation_alias='custodian_ref', default=None)
 
 
@@ -16,8 +16,8 @@ class BaseTradeCptyA(BaseModel):
     trade_date: datetime = Field(validation_alias='TradeDate')
     account: str = Field(validation_alias='AccountID')
     ticker: str = Field(validation_alias='Ticker')
-    quantity: float = Field(gt=0, validation_alias='Quantity')
-    price: float | None = Field(gt=0, validation_alias='Price')
+    quantity: float = Field(validation_alias='Quantity')
+    price: float | None = Field(validation_alias='Price')
     market_value: float | None = Field(default=None)
     trade_type: str = Field(validation_alias='TradeType')
     settle_date: datetime = Field(validation_alias='SettlementDate')

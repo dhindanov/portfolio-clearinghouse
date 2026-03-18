@@ -12,6 +12,7 @@ class Trades(db.Model):
     market_value = db.Column(db.Numeric, nullable=True)
     custodian = db.Column(db.Text, nullable=True)
     source = db.Column(db.Text, nullable=False)
+    batch_id = db.Column(db.Numeric, nullable=False)
 
 
 class Positions(db.Model):

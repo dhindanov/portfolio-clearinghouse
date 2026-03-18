@@ -38,14 +38,12 @@ def read_position_yaml(file: Any) -> InputCheck:
 
     # Validate incoming data
     checked: list[BasePosition] = []
+    rejected: list[str] = []
     for row in data:
         try:
             checked.append(BasePosition(trade_date=trade_date, **row))
         except Exception as err:
-            errors.append(str(err))
-    if errors:
-        status = 'data validation errors'
-        return InputCheck(status=status, count=len(checked), errors=errors)
+            rejected.append(str(err))
 
     # Delete and replace all Positions rows for trade_date
     try:
@@ -59,7 +57,13 @@ def read_position_yaml(file: Any) -> InputCheck:
         status = 'database errors'
         return InputCheck(status=status, count=len(checked), errors=errors)
 
-    return InputCheck(status='success', count=len(checked), errors=errors)
+    # Add rejected rows to errors if there were any, and set status accordingly
+    if rejected:
+        errors['rejected_rows'] = rejected
+        status = 'partial success with rejected rows'
+    else:
+        status = 'success'
+    return InputCheck(status=status, count=len(checked), errors=errors)
 
 
 def read_trade_csv(file: Any, cpty: str) -> InputCheck:
@@ -83,24 +87,22 @@ def read_trade_csv(file: Any, cpty: str) -> InputCheck:
         errors.append(f'invalid csv input {err}')
         return InputCheck(status='input error', errors=errors)
 
+    # Get the next bach_id
+    batch_id = 1 + (db.session.query(db.func.max(Trades.batch_id)).scalar() or 0)
+
     # Validate and process incoming data
-    checked: list[BasePosition] = []
+    checked: list[BaseTradeCptyA | BaseTradeCptyB] = []
+    rejected: list[str] = []
     for row in data:
         try:
             checked.append(read_model(**row))
         except Exception as err:
-            errors.append(str(err))
-    if errors:
-        status = 'data validation errors'
-        return InputCheck(status=status, count=len(checked), errors=errors)
+            rejected.append(str(err))
 
-    # Delete and replace all Positions rows for trade_date
-    to_remove = set(row.trade_date for row in checked)
+    # Add new Trade rows for trade_date
     try:
-        for trade_date in to_remove:
-            Trades.query.filter(Trades.trade_date == trade_date).delete()
         for row in checked:
-            out = maker(cpty, row)
+            out = maker(cpty, row, batch_id=batch_id)
             db.session.add(out)
         db.session.commit()
     except Exception as err:
@@ -108,20 +110,26 @@ def read_trade_csv(file: Any, cpty: str) -> InputCheck:
         status = 'database errors'
         return InputCheck(status=status, count=len(checked), errors=errors)
 
-    return InputCheck(status='success', count=len(checked), errors=errors)
+    # Add rejected rows to errors if there were any, and set status accordingly
+    if rejected:
+        errors['rejected_rows'] = rejected
+        status = 'partial success with rejected rows'
+    else:
+        status = 'success'
+    return InputCheck(status=status, count=len(checked), errors=errors)
 
 
-def make_trade_CptyA(cpty: str, read_model: BaseTradeCptyA) -> Trades:
+def make_trade_CptyA(cpty: str, read_model: BaseTradeCptyA, batch_id: int) -> Trades:
     w = {k: v for k, v in read_model.model_dump().items() if k in Trades.__table__.columns}
-    t = Trades(source=cpty, **w)
+    t = Trades(source=cpty, batch_id=batch_id, **w)
     t.quantity *= 1 if read_model.trade_type[0] == 'B' else -1
     t.market_value = t.quantity * t.price
     return t
 
 
-def make_trade_CptyB(cpty: str, read_model: BaseTradeCptyB) -> Trades:
+def make_trade_CptyB(cpty: str, read_model: BaseTradeCptyB, batch_id: int) -> Trades:
     w = {k: v for k, v in read_model.model_dump().items() if k in Trades.__table__.columns}
-    t = Trades(source=cpty, **w)
+    t = Trades(source=cpty, batch_id=batch_id, **w)
     t.trade_type = 'BUY' if t.quantity >= 0 else 'SELL'
     t.price = abs(t.market_value / t.quantity) if t.quantity else 0
     return t
@@ -183,22 +191,53 @@ def report_concentration(trade_date: datetime) -> list[ReportConcentration]:
 
 
 def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
-    """Trade vs position file discrepancies on provided day.
-    For lack of data on several days, we stub out a comparison between trades and positions.
+    """Compare sum of trades to position changes on the day. Missing trades or positions default to zero.
+
+    Caveats:
+    Since Mysql implements full outer joins quite awkwardly, we pull positions for each day separately and compute their change in memory.
+    # Assume that positions are unique by trade_date, account, ticker. If there are multiple rows for a given combination, their quantities and market values will be summed, and any discrepancies with trades will be reported.
     """
     # A data structure to aggregate and compare quantities from positions and trades
     agg = defaultdict(dict)
+    # Keys to compare between positions and trades, missing values as 0 for easier comparison and reporting of discrepancies
     compare_on = ['quantity', 'market_value']
 
-    # Pull the data and group by trade_date, account, ticker
-    for tbl in ('positions', 'trades'):
-        sql: str = text(f"select * from {tbl} where trade_date = :dt")
-        cursor = db.session.execute(sql, {'dt': trade_date})
-        for row in cursor:
-            key = (row.trade_date, row.account, row.ticker)
-            side = agg[key].setdefault(tbl, {})
+    # Pull positions for trade_date and the most recent prior date
+    pos_chg = defaultdict(dict)
+    curr_pos: list[Positions] = db.session.query(Positions).filter(Positions.trade_date == trade_date).all()
+    for row in curr_pos:
+        key = (row.account, row.ticker)
+        out = agg[key].setdefault('positions', {})
+        for q in compare_on:
+            out[q] = out.get(q, 0) + getattr(row, q)
+
+    # Get previous trade_date for the same account and ticker, to compute the change in position
+    prev_day = db.session.query(db.func.max(Positions.trade_date)).filter(Positions.trade_date < trade_date).scalar()
+    if prev_day:
+        prev_pos: list[Positions] = db.session.query(Positions).filter(Positions.trade_date == prev_day).all()
+        for row in prev_pos:
+            key = (row.account, row.ticker)
+            out = pos_chg[key]
             for q in compare_on:
-                side[q] = side.get(q, 0) + getattr(row, q)
+                out[q] = out.get(q, 0) - getattr(row, q)
+
+    # Pull the trades for trade_date, and sum up the quantities and market values by account and ticker, to compare to the position changes
+    curr_trd: list[Trades] = db.session.query(Trades).filter(Trades.trade_date == trade_date).all()
+    for row in curr_trd:
+        key = (row.account, row.ticker)
+        out = agg[key].setdefault('trades', {})
+        for q in compare_on:
+            out[q] = out.get(q, 0) + getattr(row, q)
+
+    # for tbl in ('positions', 'trades'):
+    #     sql: str = text(f"select * from {tbl} where trade_date = :dt")
+    #     cursor = db.session.execute(sql, {'dt': trade_date})
+    #     for row in cursor:
+    #         key = (row.trade_date, row.account, row.ticker)
+    #         side = agg[key].setdefault(tbl, {})
+    #         # Sum up the values for each side, to compare at the end and report discrepancies
+    #         for q in compare_on:
+    #             side[q] = side.get(q, 0) + getattr(row, q)
 
     # Select keys that differ on any comparison items
     out: list[ReportReconciliation] = []
@@ -210,16 +249,16 @@ def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
                 same = False
         if not same:
             failed = ReportReconciliation(
-                trade_date=key[0],
-                account=key[1],
-                ticker=key[2],
+                trade_date=trade_date,
+                account=key[0],
+                ticker=key[1],
                 position=ReportReconciliationDetail(
-                    quantity=pos.get('quantity'),
-                    market_value=pos.get('market_value'),
+                    quantity=pos.get('quantity') or 0,
+                    market_value=pos.get('market_value') or 0,
                 ),
                 trade=ReportReconciliationDetail(
-                    quantity=trd.get('quantity'),
-                    market_value=trd.get('market_value'),
+                    quantity=trd.get('quantity') or 0,
+                    market_value=trd.get('market_value') or 0,
                 ),
             )
             out.append(failed)

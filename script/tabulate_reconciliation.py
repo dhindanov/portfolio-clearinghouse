@@ -76,7 +76,7 @@ def write_xlsx(trade_date, agg):
     for key, data in sorted(agg.items()):
         cell = ws.cell(row=ir, column=1, value=key[0])
         cell = ws.cell(row=ir, column=2, value=key[1])
-        cell = ws.cell(row=ir, column=5, value=trade_date.strftime('%m/%d'))
+        cell = ws.cell(row=ir, column=5, value=trade_date.strftime('%Y-%m-%d'))
 
         dpos = data.get('positions', {})
         pos = dpos.get('quantity') or 0

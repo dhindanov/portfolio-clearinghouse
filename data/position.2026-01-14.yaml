@@ -1,0 +1,22 @@
+report_date: "20260114"
+positions:
+- account_id: "SCEN01"
+  ticker: "AAPL"
+  shares: 125
+  market_value: 20000.00
+  custodian_ref: "CUST_A_12345"
+- account_id: "SCEN02"
+  ticker: "AAPL"
+  shares: 125
+  market_value: 20000.00
+  custodian_ref: "CUST_A_12346"
+- account_id: "SCEN03"
+  ticker: "AAPL"
+  shares: 125
+  market_value: 20000.00
+  custodian_ref: "CUST_A_12347"
+- account_id: "SCEN04"
+  ticker: "AAPL"
+  shares: 115
+  market_value: 20000.00
+  custodian_ref: "CUST_B_22345"

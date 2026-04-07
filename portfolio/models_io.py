@@ -1,6 +1,6 @@
 from typing import Any, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 
 
 class BasePosition(BaseModel):
@@ -76,13 +76,12 @@ class ReportConcentration(BaseModel):
 
 
 class ReportReconciliationDetail(BaseModel):
-    quantity: float | None
-    market_value: float | None
+    quantity: Optional[float] = None
+    market_value: Optional[float] = None
 
 
 class ReportReconciliation(BaseModel):
     trade_date: datetime
     account: str
     ticker: str
-    trade: ReportReconciliationDetail
-    position: ReportReconciliationDetail
+    breaks: ReportReconciliationDetail

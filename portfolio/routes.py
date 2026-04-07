@@ -64,4 +64,4 @@ def reconciliation() -> list[ReportReconciliation]:
     """
     trade_date: datetime = request.args.get('date')
     out = handler.report_reconciliation(trade_date)
-    return jsonify([rep.model_dump() for rep in out])
+    return jsonify([rep.model_dump(exclude_none=True) for rep in out])

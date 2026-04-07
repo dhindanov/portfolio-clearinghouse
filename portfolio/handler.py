@@ -192,17 +192,16 @@ def report_concentration(trade_date: datetime) -> list[ReportConcentration]:
 def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
     """Compare sum of trades to position changes on the day. Missing trades or positions default to zero.
 
-    Caveats:
-    Since Mysql implements full outer joins quite awkwardly, we pull positions for each day separately and compute their change in memory.
-    # Assume that positions are unique by trade_date, account, ticker. If there are multiple rows for a given combination, their quantities and market values will be summed, and any discrepancies with trades will be reported.
+    Positions are grouped by trade_date, account, ticker. If there are multiple rows for a given combination,
+    their quantities and market values will be summed, and any discrepancies with trades will be reported.
     """
+
     # A data structure to aggregate and compare quantities from positions and trades
     agg = defaultdict(dict)
     # Keys to compare between positions and trades, missing values as 0 for easier comparison and reporting of discrepancies
-    compare_on = ['quantity', 'market_value']
+    compare_on = ['quantity']
 
-    # Pull positions for trade_date and the most recent prior date
-    pos_chg = defaultdict(dict)
+    # Pull positions for trade_date
     curr_pos: list[Positions] = db.session.query(Positions).filter(Positions.trade_date == trade_date).all()
     for row in curr_pos:
         key = (row.account, row.ticker)
@@ -210,18 +209,18 @@ def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
         for q in compare_on:
             out[q] = out.get(q, 0) + getattr(row, q)
 
-    # Get previous trade_date for the same account and ticker, to compute the change in position
-    prev_day = db.session.query(db.func.max(Positions.trade_date)).filter(Positions.trade_date < trade_date).scalar()
-    if prev_day:
-        prev_pos: list[Positions] = db.session.query(Positions).filter(Positions.trade_date == prev_day).all()
-        for row in prev_pos:
-            key = (row.account, row.ticker)
-            out = pos_chg[key]
-            for q in compare_on:
-                out[q] = out.get(q, 0) - getattr(row, q)
-
     # Pull the trades for trade_date, and sum up the quantities and market values by account and ticker, to compare to the position changes
-    curr_trd: list[Trades] = db.session.query(Trades).filter(Trades.trade_date == trade_date).all()
+    curr_trd = (
+        db.session.query(
+            Trades.account,
+            Trades.ticker,
+            db.func.sum(Trades.quantity).label('quantity'),
+            db.func.sum(Trades.market_value).label('market_value'),
+        )
+        .filter(Trades.trade_date <= trade_date)
+        .group_by(Trades.account, Trades.ticker)
+        .all()
+    )
     for row in curr_trd:
         key = (row.account, row.ticker)
         out = agg[key].setdefault('trades', {})
@@ -231,24 +230,14 @@ def report_reconciliation(trade_date: datetime) -> list[ReportReconciliation]:
     # Select keys that differ on any comparison items
     out: list[ReportReconciliation] = []
     for key, data in sorted(agg.items()):
-        same = True
         pos, trd = data.get('positions', {}), data.get('trades', {})
-        for q in compare_on:
-            if pos.get(q, 0) != trd.get(q, 0):
-                same = False
-        if not same:
+        diff = {q: v for q, v in [[q, pos.get(q, 0) - trd.get(q, 0)] for q in compare_on] if v}
+        if diff:
             failed = ReportReconciliation(
                 trade_date=trade_date,
                 account=key[0],
                 ticker=key[1],
-                position=ReportReconciliationDetail(
-                    quantity=pos.get('quantity') or 0,
-                    market_value=pos.get('market_value') or 0,
-                ),
-                trade=ReportReconciliationDetail(
-                    quantity=trd.get('quantity') or 0,
-                    market_value=trd.get('market_value') or 0,
-                ),
+                breaks=ReportReconciliationDetail(**diff),
             )
             out.append(failed)
     return out

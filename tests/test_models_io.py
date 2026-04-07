@@ -198,14 +198,12 @@ class TestReportModels:
 
     def test_report_reconciliation(self):
         """Test ReportReconciliation model."""
-        pos_detail = ReportReconciliationDetail(quantity=100.0, market_value=15000.0)
-        trd_detail = ReportReconciliationDetail(quantity=95.0, market_value=14250.0)
-
+        breaks = ReportReconciliationDetail(quantity=100.0, market_value=15000.0)
         rep = ReportReconciliation(
             trade_date=datetime(2026, 1, 15),
             account='ACC001',
             ticker='AAPL',
-            position=pos_detail,
-            trade=trd_detail
+            breaks=breaks
         )
-        assert rep.position.quantity != rep.trade.quantity
+        assert rep.breaks.quantity == 100.0
+        assert rep.breaks.market_value == 15000.0
